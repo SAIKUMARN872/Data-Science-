@@ -27,3 +27,112 @@ def parse_rss_feeds(feeds):
 articles = parse_rss_feeds(RSS_FEEDS)
 for article in articles[:5]:  # Display first 5 articles for testing
     print(f"Title: {article['title']}, Published: {article['published']}")
+from sqlalchemy import create_engine, Column, String, Text, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import datetime
+
+# Create engine and session
+DATABASE_URL = "sqlite:///rss_feed.db"  # SQLite for simplicity; you can use PostgreSQL
+engine = create_engine(DATABASE_URL)
+Base = declarative_base()
+Session = sessionmaker(bind=engine)
+session = Session()
+
+# Define the NewsArticle table
+class NewsArticle(Base):
+    _tablename_ = 'news_articles'
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    link = Column(String, nullable=False)
+    published = Column(DateTime, nullable=False)
+    summary = Column(Text, nullable=True)
+    category = Column(String, nullable=True)  # For later classification
+
+# Create the table
+Base.metadata.create_all(engine)
+
+# Function to store articles in the database
+def store_articles(articles):
+    for article in articles:
+        # Avoid storing duplicates based on link
+        if session.query(NewsArticle).filter_by(link=article['link']).first() is None:
+            news_article = NewsArticle(
+                id=article['link'],
+                title=article['title'],
+                link=article['link'],
+                published=datetime.datetime.strptime(article['published'], '%a, %d %b %Y %H:%M:%S %Z'),
+                summary=article['summary']
+            )
+            session.add(news_article)
+    session.commit()
+
+# Store the parsed articles in the database
+store_articles(articles)
+from celery import Celery
+
+# Configure Celery
+app = Celery('tasks', broker='redis://localhost:6379/0')
+
+# Function to classify articles and update the database
+@app.task
+def classify_and_store_article(article):
+    # Simple classification logic using spaCy
+    category = classify_article_spacy(article['summary'])
+
+    # Update the database with the assigned category
+    db_article = session.query(NewsArticle).filter_by(link=article['link']).first()
+    if db_article:
+        db_article.category = category
+        session.commit()
+mport spacy
+
+# Load spaCy's small English model
+nlp = spacy.load('en_core_web_sm')
+
+# Pre-defined categories based on keywords
+categories = {
+    'terrorism': 'Terrorism / protest / political unrest / riot',
+    'protest': 'Terrorism / protest / political unrest / riot',
+    'uplifting': 'Positive/Uplifting',
+    'earthquake': 'Natural Disasters',
+    'disaster': 'Natural Disasters',
+    # Add more keywords and categories as needed
+}
+# Function to classify an article using spaCy
+def classify_article_spacy(article_text):
+    doc = nlp(article_text)
+
+    category = 'Others'  # Default category if no keyword is found
+    for token in doc:
+        keyword = token.lemma_.lower()
+        if keyword in categories:
+            category = categories[keyword]
+            break
+
+    return category
+import logging
+
+# Configure logging
+logging.basicConfig(filename='rss_feed_app.log', level=logging.INFO, 
+                    format='%(asctime)s:%(levelname)s:%(message)s')
+
+# Example of logging during article storage
+def store_articles(articles):
+    for article in articles:
+        try:
+            if session.query(NewsArticle).filter_by(link=article['link']).first() is None:
+                news_article = NewsArticle(
+                    id=article['link'],
+                    title=article['title'],
+                    link=article['link'],
+                    published=datetime.datetime.strptime(article['published'], '%a, %d %b %Y %H:%M:%S %Z'),
+                    summary=article['summary']
+                )
+                session.add(news_article)
+                logging.info(f"Stored article: {article['title']}")
+            else:
+                logging.info(f"Duplicate article skipped: {article['title']}")
+        except Exception as e:
+            logging.error(f"Error storing article {article['title']}: {str(e)}")
+    session.commit()
