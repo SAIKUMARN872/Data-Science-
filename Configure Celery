@@ -1,0 +1,16 @@
+from celery import Celery
+
+# Configure Celery
+app = Celery('tasks', broker='redis://localhost:6379/0')
+
+# Function to classify articles and update the database
+@app.task
+def classify_and_store_article(article):
+    # Simple classification logic using spaCy
+    category = classify_article_spacy(article['summary'])
+
+    # Update the database with the assigned category
+    db_article = session.query(NewsArticle).filter_by(link=article['link']).first()
+    if db_article:
+        db_article.category = category
+        session.commit()
