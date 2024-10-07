@@ -1,0 +1,25 @@
+import logging
+
+# Configure logging
+logging.basicConfig(filename='rss_feed_app.log', level=logging.INFO, 
+                    format='%(asctime)s:%(levelname)s:%(message)s')
+
+# Example of logging during article storage
+def store_articles(articles):
+    for article in articles:
+        try:
+            if session.query(NewsArticle).filter_by(link=article['link']).first() is None:
+                news_article = NewsArticle(
+                    id=article['link'],
+                    title=article['title'],
+                    link=article['link'],
+                    published=datetime.datetime.strptime(article['published'], '%a, %d %b %Y %H:%M:%S %Z'),
+                    summary=article['summary']
+                )
+                session.add(news_article)
+                logging.info(f"Stored article: {article['title']}")
+            else:
+                logging.info(f"Duplicate article skipped: {article['title']}")
+        except Exception as e:
+            logging.error(f"Error storing article {article['title']}: {str(e)}")
+    session.commit()
