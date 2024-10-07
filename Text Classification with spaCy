@@ -1,0 +1,27 @@
+import spacy
+
+# Load spaCy's small English model
+nlp = spacy.load('en_core_web_sm')
+
+# Pre-defined categories based on keywords
+categories = {
+    'terrorism': 'Terrorism / protest / political unrest / riot',
+    'protest': 'Terrorism / protest / political unrest / riot',
+    'uplifting': 'Positive/Uplifting',
+    'earthquake': 'Natural Disasters',
+    'disaster': 'Natural Disasters',
+    # Add more keywords and categories as needed
+}
+
+# Function to classify an article using spaCy
+def classify_article_spacy(article_text):
+    doc = nlp(article_text)
+
+    category = 'Others'  # Default category if no keyword is found
+    for token in doc:
+        keyword = token.lemma_.lower()
+        if keyword in categories:
+            category = categories[keyword]
+            break
+
+    return category
